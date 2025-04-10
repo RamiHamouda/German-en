@@ -1,25 +1,9 @@
 package com.bnyro
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.lagradost.cloudstream3.HomePageList
-import com.lagradost.cloudstream3.HomePageResponse
-import com.lagradost.cloudstream3.LoadResponse
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.MainPageRequest
-import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.TvSeriesSearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.amap
-import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.fixUrl
-import com.lagradost.cloudstream3.fixUrlNull
-import com.lagradost.cloudstream3.newEpisode
-import com.lagradost.cloudstream3.newHomePageResponse
-import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import com.lagradost.cloudstream3.newTvSeriesSearchResponse
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.utils.*
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -30,17 +14,13 @@ open class Serienstream : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val hasMainPage = true
-    override var lang = "en"  // Changed from "de" to "en"
+    override var lang = "de"
 
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
         val document = app.get(mainUrl).document
-
-        // Add language switcher simulation here if necessary
-        // E.g., simulating a click on the language switcher if the page is available in different languages.
-        // Example: document.select("div.languageSwitcher a[title='English']").click()
 
         val homePageLists = document.select("div.carousel").map { ele ->
             val header = ele.selectFirst("h2")?.text() ?: return@map null
@@ -77,30 +57,30 @@ open class Serienstream : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
-        // Ensure we are loading English content. You can simulate language change if needed.
-        // e.g., Change page's language to English if needed
-
         val title = document.selectFirst("div.series-title span")?.text() ?: return null
         val poster = fixUrlNull(document.selectFirst("div.seriesCoverBox img")?.attr("data-src"))
         val tags = document.select("div.genres li a").map { it.text() }
         val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
         val description = document.select("p.seri_des").text()
-        val actors = document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() }
+        val actors =
+            document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() }
 
-        // Extracting episodes data from the page
-        val episodes = document.select("tbody#season2 tr").mapNotNull { ele ->
-            val seasonNumber = ele.selectFirst("td.season2EpisodeID meta[itemprop=episodeNumber]")?.attr("content")?.toIntOrNull()
-            val episodeName = ele.selectFirst(".seasonEpisodeTitle strong")?.text()
-            val episodeUrl = fixUrlNull(ele.selectFirst("a")?.attr("href"))
-            
-            if (seasonNumber != null && episodeName != null && episodeUrl != null) {
-                newEpisode(episodeUrl) {
-                    this.episode = seasonNumber
-                    this.name = episodeName
+        val episodes = document.select("div#stream > ul:first-child li").mapNotNull { ele ->
+            val seasonLink = ele.selectFirst("a") ?: return@mapNotNull null
+            val seasonNumber = seasonLink.text().toIntOrNull()
+            val seasonDocument = app.get(fixUrl(seasonLink.attr("href"))).document
+
+            seasonDocument.select("table.seasonEpisodesList tbody tr").map { eps ->
+                newEpisode(
+                    fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null),
+                ) {
+                    this.episode = eps.selectFirst("meta[itemprop=episodeNumber]")
+                        ?.attr("content")?.toIntOrNull()
+                    this.name = eps.selectFirst(".seasonEpisodeTitle")?.text()
                     this.season = seasonNumber
                 }
-            } else null
-        }
+            }.filterNotNull()
+        }.flatten()
 
         return newTvSeriesLoadResponse(
             title,
@@ -118,7 +98,80 @@ open class Serienstream : MainAPI() {
         }
     }
 
-    // Other methods remain unchanged...
+    // MODIFIED TO PRIORITIZE ENGLISH LINKS
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val document = app.get(data).document
+        
+        // First try to find English links (data-lang-key="en")
+        val englishLinks = document.select("div.hosterSiteVideo ul li").mapNotNull {
+            val langKey = it.attr("data-lang-key")
+            if (langKey != "en") return@mapNotNull null // Skip non-English
+            
+            Triple(
+                langKey,
+                it.attr("data-link-target"),
+                it.select("h4").text()
+            )
+        }
+        
+        // If no English links found, fall back to any available links
+        val links = if (englishLinks.isEmpty()) {
+            document.select("div.hosterSiteVideo ul li").map {
+                Triple(
+                    it.attr("data-lang-key"),
+                    it.attr("data-link-target"),
+                    it.select("h4").text()
+                )
+            }
+        } else {
+            englishLinks
+        }
+        
+        links.amap {
+            val redirectUrl = app.get(fixUrl(it.second)).url
+            val lang = it.first.getLanguage(document)
+            val name = "${it.third} [${lang}]"
+
+            loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+                val linkWithFixedName = runBlocking {
+                    newExtractorLink(
+                        source = it.third,
+                        name = name,
+                        url = link.url
+                    ) {
+                        referer = link.referer
+                        quality = link.quality
+                        type = link.type
+                        headers = link.headers
+                        extractorData = link.extractorData
+                    }
+                }
+                callback.invoke(linkWithFixedName)
+            }
+        }
+
+        return true
+    }
+
+    private fun Element.toSearchResult(): TvSeriesSearchResponse? {
+        val href = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
+        val title = this.selectFirst("h3")?.text() ?: return null
+        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("data-src"))
+
+        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+            this.posterUrl = posterUrl
+        }
+    }
+
+    private fun String.getLanguage(document: Document): String? {
+        return document.selectFirst("div.changeLanguageBox img[data-lang-key=$this]")
+            ?.attr("title")?.removePrefix("mit")?.trim()
+    }
 
     private class SearchResp: ArrayList<SearchItem>()
 
