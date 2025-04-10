@@ -1,27 +1,8 @@
 package com.bnyro
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.lagradost.cloudstream3.HomePageList
-import com.lagradost.cloudstream3.HomePageResponse
-import com.lagradost.cloudstream3.LoadResponse
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.MainPageRequest
-import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.SubtitleFile
-import com.lagradost.cloudstream3.TvSeriesSearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.amap
-import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.fixUrl
-import com.lagradost.cloudstream3.fixUrlNull
-import com.lagradost.cloudstream3.newEpisode
-import com.lagradost.cloudstream3.newHomePageResponse
-import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import com.lagradost.cloudstream3.newTvSeriesSearchResponse
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -57,9 +38,7 @@ open class Serienstream : MainAPI() {
             "$mainUrl/ajax/search",
             data = mapOf("keyword" to query),
             referer = "$mainUrl/search",
-            headers = mapOf(
-                "x-requested-with" to "XMLHttpRequest"
-            )
+            headers = mapOf("x-requested-with" to "XMLHttpRequest")
         )
         return resp.parsed<SearchResp>().filter {
             !it.link.contains("episode-") && it.link.contains("/stream")
@@ -80,8 +59,8 @@ open class Serienstream : MainAPI() {
         val tags = document.select("div.genres li a").map { it.text() }
         val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
         val description = document.select("p.seri_des").text()
-        val actors =
-            document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() }
+        val actors = document.select("li:contains(Schauspieler:) ul li a")
+            .map { it.select("span").text() }
 
         val episodes = document.select("div#stream > ul:first-child li").mapNotNull { ele ->
             val seasonLink = ele.selectFirst("a") ?: return@mapNotNull null
@@ -89,29 +68,20 @@ open class Serienstream : MainAPI() {
             val seasonDocument = app.get(fixUrl(seasonLink.attr("href"))).document
 
             seasonDocument.select("table.seasonEpisodesList tbody tr").map { eps ->
-                newEpisode(
-                    fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null),
-                ) {
-                    this.episode = eps.selectFirst("meta[itemprop=episodeNumber]")
-                        ?.attr("content")?.toIntOrNull()
+                newEpisode(fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null)) {
+                    this.episode = eps.selectFirst("meta[itemprop=episodeNumber]")?.attr("content")?.toIntOrNull()
                     this.name = eps.selectFirst(".seasonEpisodeTitle")?.text()
                     this.season = seasonNumber
                 }
             }.filterNotNull()
         }.flatten()
 
-        return newTvSeriesLoadResponse(
-            title,
-            url,
-            TvType.TvSeries,
-            episodes
-        ) {
+        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.name = title
             this.posterUrl = poster
             this.year = year
             this.plot = description
             this.tags = tags
-
             addActors(actors)
         }
     }
@@ -123,33 +93,36 @@ open class Serienstream : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        document.select("div.hosterSiteVideo ul li").map {
-            Triple(
-                it.attr("data-lang-key"),
-                it.attr("data-link-target"),
-                it.select("h4").text()
-            )
-        }.amap {
-            val redirectUrl = app.get(fixUrl(it.second)).url
-            val lang = it.first.getLanguage(document)
-            val name = "${it.third} [${lang}]"
 
-            loadExtractor(redirectUrl, data, subtitleCallback) { link ->
-                val linkWithFixedName = runBlocking {
-                    newExtractorLink(
-                        source = it.third,
-                        name = name,
-                        url = link.url
-                    ) {
-                        referer = link.referer
-                        quality = link.quality
-                        type = link.type
-                        headers = link.headers
-                        extractorData = link.extractorData
-                    }
+        // Select only hosters with an English flag (title="Englisch")
+        val usLinks = document.select("div.hosterSiteVideo ul li")
+            .filter { it.selectFirst("img.flag")?.attr("title")?.contains("Englisch", true) == true }
+
+        if (usLinks.size < 2) return false
+
+        val secondUsLink = usLinks[1]
+        val targetUrl = secondUsLink.attr("data-link-target")
+        val hostName = secondUsLink.select("h4").text()
+        val lang = "Englisch"
+        val name = "$hostName [$lang]"
+
+        val redirectUrl = app.get(fixUrl(targetUrl)).url
+
+        loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+            val linkWithFixedName = runBlocking {
+                newExtractorLink(
+                    source = hostName,
+                    name = name,
+                    url = link.url
+                ) {
+                    referer = link.referer
+                    quality = link.quality
+                    type = link.type
+                    headers = link.headers
+                    extractorData = link.extractorData
                 }
-                callback.invoke(linkWithFixedName)
             }
+            callback.invoke(linkWithFixedName)
         }
 
         return true
@@ -165,12 +138,7 @@ open class Serienstream : MainAPI() {
         }
     }
 
-    private fun String.getLanguage(document: Document): String? {
-        return document.selectSecond("div.changeLanguageBox img[data-lang-key=$this]")
-            ?.attr("title")?.removePrefix("mit")?.trim()
-    }
-
-    private class SearchResp: ArrayList<SearchItem>()
+    private class SearchResp : ArrayList<SearchItem>()
 
     private data class SearchItem(
         @JsonProperty("link") val link: String,
