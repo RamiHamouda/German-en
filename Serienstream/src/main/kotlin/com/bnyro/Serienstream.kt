@@ -54,7 +54,6 @@ open class Serienstream : MainAPI() {
         }
     }
 
-    // MODIFIED TO PRIORITIZE ENGLISH EPISODES VIA FLAG ICONS
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
@@ -72,19 +71,9 @@ open class Serienstream : MainAPI() {
             val seasonDocument = app.get(fixUrl(seasonLink.attr("href"))).document
 
             seasonDocument.select("table.seasonEpisodesList tbody tr").map { eps ->
-                // Check for English version (via flag icon or title)
-                val englishLink = eps.selectFirst("td.editFunctions a img[title~=Englisch]")
-                    ?.parent()?.attr("href")
-                    ?: eps.selectFirst("td.editFunctions a img[src*='english.svg']")
-                        ?.parent()?.attr("href")
-
-                val episodeUrl = if (!englishLink.isNullOrEmpty()) {
-                    fixUrl(englishLink)
-                } else {
-                    fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null)
-                }
-
-                newEpisode(episodeUrl) {
+                newEpisode(
+                    fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null),
+                ) {
                     this.episode = eps.selectFirst("meta[itemprop=episodeNumber]")
                         ?.attr("content")?.toIntOrNull()
                     this.name = eps.selectFirst(".seasonEpisodeTitle")?.text()
@@ -104,10 +93,12 @@ open class Serienstream : MainAPI() {
             this.year = year
             this.plot = description
             this.tags = tags
+
             addActors(actors)
         }
     }
 
+    // MODIFIED TO PRIORITIZE ENGLISH LINKS
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -115,14 +106,34 @@ open class Serienstream : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        document.select("div.hosterSiteVideo ul li").map {
+        
+        // First try to find English links (data-lang-key="en")
+        val englishLinks = document.select("div.hosterSiteVideo ul li").mapNotNull {
+            val langKey = it.attr("data-lang-key")
+            if (langKey != "en") return@mapNotNull null // Skip non-English
+            
             Triple(
-                it.attr("data-lang-key"),
+                langKey,
                 it.attr("data-link-target"),
                 it.select("h4").text()
             )
-        }.amap {
-            val redirectUrl = app.get(fixUrl(it.second))).url
+        }
+        
+        // If no English links found, fall back to any available links
+        val links = if (englishLinks.isEmpty()) {
+            document.select("div.hosterSiteVideo ul li").map {
+                Triple(
+                    it.attr("data-lang-key"),
+                    it.attr("data-link-target"),
+                    it.select("h4").text()
+                )
+            }
+        } else {
+            englishLinks
+        }
+        
+        links.amap {
+            val redirectUrl = app.get(fixUrl(it.second)).url
             val lang = it.first.getLanguage(document)
             val name = "${it.third} [${lang}]"
 
@@ -143,6 +154,7 @@ open class Serienstream : MainAPI() {
                 callback.invoke(linkWithFixedName)
             }
         }
+
         return true
     }
 
