@@ -93,18 +93,34 @@ open class Serienstream : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
+        val allHosters = document.select("div.hosterSiteVideo ul li")
 
-        // Select only hosters with an English flag (title="Englisch")
-        val usLinks = document.select("div.hosterSiteVideo ul li")
-            .filter { it.selectFirst("img.flag")?.attr("title")?.contains("Englisch", true) == true }
+        // DEBUG: Print all hosters and their flag src for inspection
+        allHosters.forEachIndexed { index, host ->
+            val hostName = host.select("h4").text()
+            val flagSrc = host.selectFirst("img.flag")?.attr("src") ?: "NO FLAG"
+            println("[$index] Host: $hostName | Flag: $flagSrc")
+        }
 
-        if (usLinks.size < 2) return false
+        // Filter for English language hosters by checking 'english' in the flag filename
+        val englishHosters = allHosters.filter {
+            val flagSrc = it.selectFirst("img.flag")?.attr("src") ?: return@filter false
+            flagSrc.contains("english", ignoreCase = true)
+        }
 
-        val secondUsLink = usLinks[1]
-        val targetUrl = secondUsLink.attr("data-link-target")
-        val hostName = secondUsLink.select("h4").text()
-        val lang = "Englisch"
-        val name = "$hostName [$lang]"
+        println("Found ${englishHosters.size} English hosters.")
+
+        val selectedHoster = if (englishHosters.size >= 2) {
+            englishHosters[1]
+        } else {
+            println("Not enough English hosters, using first available.")
+            allHosters.firstOrNull() ?: return false
+        }
+
+        val targetUrl = selectedHoster.attr("data-link-target")
+        val hostName = selectedHoster.select("h4").text()
+        val flagLabel = selectedHoster.selectFirst("img.flag")?.attr("title") ?: "Unknown"
+        val name = "$hostName [$flagLabel]"
 
         val redirectUrl = app.get(fixUrl(targetUrl)).url
 
