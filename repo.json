@@ -1,6 +1,6 @@
 {
-  "name": "German providers repository",
-  "description": "German providers",
+  "name": "German providers EN repository",
+  "description": "German providers EN",
   "manifestVersion": 1,
   "pluginLists": [
     "https://raw.githubusercontent.com/bnyro/GermanProviders/builds/plugins.json"
