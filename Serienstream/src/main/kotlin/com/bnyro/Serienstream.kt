@@ -93,43 +93,60 @@ open class Serienstream : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
+
+        // Select all hosters
         val allHosters = document.select("div.hosterSiteVideo ul li")
 
-        // DEBUG: Print all hosters and their flag src for inspection
+        // Check if no hosters found
+        if (allHosters.isEmpty()) {
+            println("No hosters found on this page.")
+            return false
+        }
+
+        // DEBUG: Print all hosters and their details
         allHosters.forEachIndexed { index, host ->
             val hostName = host.select("h4").text()
             val flagSrc = host.selectFirst("img.flag")?.attr("src") ?: "NO FLAG"
             println("Hoster [$index]: Host: $hostName | Flag: $flagSrc")
         }
 
-        // Try to get links from all hosters to see if any links exist
-        val selectedHoster = allHosters.firstOrNull() ?: return false
-        val targetUrl = selectedHoster.attr("data-link-target")
-        val hostName = selectedHoster.select("h4").text()
-        val flagLabel = selectedHoster.selectFirst("img.flag")?.attr("title") ?: "Unknown"
-        val name = "$hostName [$flagLabel]"
+        // Loop through all hosters to get their links
+        allHosters.forEach { hoster ->
+            val targetUrl = hoster.attr("data-link-target") // Extract the link from `data-link-target`
+            val hostName = hoster.select("h4").text() // Host name
+            val flagLabel = hoster.selectFirst("img.flag")?.attr("title") ?: "Unknown"
+            val name = "$hostName [$flagLabel]"
 
-        // DEBUG: Log the selected hoster and target URL
-        println("Selected Hoster: $hostName | Link Target: $targetUrl")
+            // DEBUG: Log the hoster's target URL
+            println("Found Hoster: $hostName | Link Target: $targetUrl")
 
-        // Follow the target URL and fetch the final link
-        val redirectUrl = app.get(fixUrl(targetUrl)).url
+            // Optional: Filter hosters based on the flag (e.g., English or US)
+            if (flagLabel.contains("Englisch", ignoreCase = true)) {
+                // Follow the target URL and fetch the final link
+                val redirectUrl = app.get(fixUrl(targetUrl)).url
 
-        loadExtractor(redirectUrl, data, subtitleCallback) { link ->
-            val linkWithFixedName = runBlocking {
-                newExtractorLink(
-                    source = hostName,
-                    name = name,
-                    url = link.url
-                ) {
-                    referer = link.referer
-                    quality = link.quality
-                    type = link.type
-                    headers = link.headers
-                    extractorData = link.extractorData
+                // Use the extractor to handle the final video link
+                loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+                    val linkWithFixedName = runBlocking {
+                        newExtractorLink(
+                            source = hostName,
+                            name = name,
+                            url = link.url
+                        ) {
+                            referer = link.referer
+                            quality = link.quality
+                            type = link.type
+                            headers = link.headers
+                            extractorData = link.extractorData
+                        }
+                    }
+                    // Invoke callback for each valid link
+                    callback.invoke(linkWithFixedName)
                 }
+            } else {
+                // Optional: Log or process hosters that don't match the language filter
+                println("Skipped Hoster: $hostName (not English)")
             }
-            callback.invoke(linkWithFixedName)
         }
 
         return true
