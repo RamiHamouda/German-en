@@ -99,29 +99,20 @@ open class Serienstream : MainAPI() {
         allHosters.forEachIndexed { index, host ->
             val hostName = host.select("h4").text()
             val flagSrc = host.selectFirst("img.flag")?.attr("src") ?: "NO FLAG"
-            println("[$index] Host: $hostName | Flag: $flagSrc")
+            println("Hoster [$index]: Host: $hostName | Flag: $flagSrc")
         }
 
-        // Filter for English language hosters by checking 'english' in the flag filename
-        val englishHosters = allHosters.filter {
-            val flagSrc = it.selectFirst("img.flag")?.attr("src") ?: return@filter false
-            flagSrc.contains("english", ignoreCase = true)
-        }
-
-        println("Found ${englishHosters.size} English hosters.")
-
-        val selectedHoster = if (englishHosters.size >= 2) {
-            englishHosters[1]
-        } else {
-            println("Not enough English hosters, using first available.")
-            allHosters.firstOrNull() ?: return false
-        }
-
+        // Try to get links from all hosters to see if any links exist
+        val selectedHoster = allHosters.firstOrNull() ?: return false
         val targetUrl = selectedHoster.attr("data-link-target")
         val hostName = selectedHoster.select("h4").text()
         val flagLabel = selectedHoster.selectFirst("img.flag")?.attr("title") ?: "Unknown"
         val name = "$hostName [$flagLabel]"
 
+        // DEBUG: Log the selected hoster and target URL
+        println("Selected Hoster: $hostName | Link Target: $targetUrl")
+
+        // Follow the target URL and fetch the final link
         val redirectUrl = app.get(fixUrl(targetUrl)).url
 
         loadExtractor(redirectUrl, data, subtitleCallback) { link ->
