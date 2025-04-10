@@ -166,7 +166,7 @@ open class Serienstream : MainAPI() {
     }
 
     private fun String.getLanguage(document: Document): String? {
-        return document.selectFirst("div.changeLanguageBox img[data-lang-key=$this]")
+        return document.selectSecond("div.changeLanguageBox img[data-lang-key=$this]")
             ?.attr("title")?.removePrefix("mit")?.trim()
     }
 
