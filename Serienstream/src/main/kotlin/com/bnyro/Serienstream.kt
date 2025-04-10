@@ -124,23 +124,23 @@ open class Serienstream : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
 
-        // Select the second language option
-        val languageLinks = document.select("div.changeLanguageBox a") // Assuming links are in <a> tags
-        if (languageLinks.size < 2) {
-            println("Second language option not found.")
+        // Target the English language by looking for the "Englisch" option in the language box
+        val languageLinks = document.select("div.changeLanguageBox a") // Get all language links
+        val englishLink = languageLinks.find { it.attr("title").contains("Englisch", ignoreCase = true) }
+
+        if (englishLink != null) {
+            val englishUrl = fixUrl(englishLink.attr("href"))
+            // Debug print to ensure we are selecting the right link
+            println("Selected English language URL: $englishUrl")
+
+            // Visit the English language URL
+            app.get(englishUrl) // This will load the page in English
+        } else {
+            println("English language option not found.")
             return false
         }
 
-        val secondLanguageLink = languageLinks[1] // Select the second language link
-        val languageUrl = fixUrl(secondLanguageLink.attr("href"))
-
-        // Debug output for language selection
-        println("Selected language URL: $languageUrl")
-
-        // Visit the second language URL to load the page in the second language
-        app.get(languageUrl) // This changes the language of the page
-
-        // After setting the language, now extract all hoster links
+        // Now, extract all hoster links after setting the language
         document.select("div.hosterSiteVideo ul li").map {
             Triple(
                 it.attr("data-lang-key"),
