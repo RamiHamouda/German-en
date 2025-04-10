@@ -8,7 +8,6 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvSeriesSearchResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.amap
@@ -75,30 +74,28 @@ open class Serienstream : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
+        // Extracting title, poster, tags, year, and description from the page
         val title = document.selectFirst("div.series-title span")?.text() ?: return null
         val poster = fixUrlNull(document.selectFirst("div.seriesCoverBox img")?.attr("data-src"))
         val tags = document.select("div.genres li a").map { it.text() }
         val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
         val description = document.select("p.seri_des").text()
-        val actors =
-            document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() }
+        val actors = document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() }
 
-        val episodes = document.select("div#stream > ul:first-child li").mapNotNull { ele ->
-            val seasonLink = ele.selectFirst("a") ?: return@mapNotNull null
-            val seasonNumber = seasonLink.text().toIntOrNull()
-            val seasonDocument = app.get(fixUrl(seasonLink.attr("href"))).document
-
-            seasonDocument.select("table.seasonEpisodesList tbody tr").map { eps ->
-                newEpisode(
-                    fixUrl(eps.selectFirst("a")?.attr("href") ?: return@map null),
-                ) {
-                    this.episode = eps.selectFirst("meta[itemprop=episodeNumber]")
-                        ?.attr("content")?.toIntOrNull()
-                    this.name = eps.selectFirst(".seasonEpisodeTitle")?.text()
+        // Extracting episodes data from the page
+        val episodes = document.select("tbody#season2 tr").mapNotNull { ele ->
+            val seasonNumber = ele.selectFirst("td.season2EpisodeID meta[itemprop=episodeNumber]")?.attr("content")?.toIntOrNull()
+            val episodeName = ele.selectFirst(".seasonEpisodeTitle strong")?.text()
+            val episodeUrl = fixUrlNull(ele.selectFirst("a")?.attr("href"))
+            
+            if (seasonNumber != null && episodeName != null && episodeUrl != null) {
+                newEpisode(episodeUrl) {
+                    this.episode = seasonNumber
+                    this.name = episodeName
                     this.season = seasonNumber
                 }
-            }.filterNotNull()
-        }.flatten()
+            } else null
+        }
 
         return newTvSeriesLoadResponse(
             title,
@@ -123,24 +120,6 @@ open class Serienstream : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-
-        // Try to find the English language option based on the title containing "Englisch"
-        val languageLinks = document.select("div.changeLanguageBox a") // All language links
-        val englishLink = languageLinks.find { it.attr("title").contains("Englisch", ignoreCase = true) }
-
-        if (englishLink != null) {
-            val englishUrl = fixUrl(englishLink.attr("href"))
-            // Debugging output: Confirm the English link is found
-            println("English URL selected: $englishUrl")
-
-            // Visit the English page to change language
-            app.get(englishUrl) // Load the English page
-        } else {
-            println("No English language option found.")
-            return false
-        }
-
-        // After language change, extract all hoster links
         document.select("div.hosterSiteVideo ul li").map {
             Triple(
                 it.attr("data-lang-key"),
@@ -188,7 +167,7 @@ open class Serienstream : MainAPI() {
             ?.attr("title")?.removePrefix("mit")?.trim()
     }
 
-    private class SearchResp : ArrayList<SearchItem>()
+    private class SearchResp: ArrayList<SearchItem>()
 
     private data class SearchItem(
         @JsonProperty("link") val link: String,
