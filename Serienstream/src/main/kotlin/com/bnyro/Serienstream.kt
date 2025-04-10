@@ -32,7 +32,7 @@ open class Serienstream : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val hasMainPage = true
-    override var lang = "en"
+    override var lang = "de"
 
     override suspend fun getMainPage(
         page: Int,
@@ -124,55 +124,50 @@ open class Serienstream : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
 
-        // Get all hosters
-        val allHosters = document.select("div.hosterSiteVideo ul li")
-
-        // Check if we have at least two hosters
-        if (allHosters.size < 2) {
-            println("Not enough hosters found.")
+        // Select the second language option
+        val languageLinks = document.select("div.changeLanguageBox a") // Assuming links are in <a> tags
+        if (languageLinks.size < 2) {
+            println("Second language option not found.")
             return false
         }
 
-        // Select the second hoster (index 1)
-        val secondHoster = allHosters[1] // Select the second item
+        val secondLanguageLink = languageLinks[1] // Select the second language link
+        val languageUrl = fixUrl(secondLanguageLink.attr("href"))
 
-        val targetUrl = secondHoster.attr("data-link-target") // Extract the link
-        val hostName = secondHoster.select("h4").text() // Host name
+        // Debug output for language selection
+        println("Selected language URL: $languageUrl")
 
-        // Debug output for the second hoster
-        println("Selected second hoster: $hostName | Target URL: $targetUrl")
+        // Visit the second language URL to load the page in the second language
+        app.get(languageUrl) // This changes the language of the page
 
-        // If the URL is empty, return false
-        if (targetUrl.isEmpty()) {
-            println("No target URL found for the second hoster.")
-            return false
-        }
+        // After setting the language, now extract all hoster links
+        document.select("div.hosterSiteVideo ul li").map {
+            Triple(
+                it.attr("data-lang-key"),
+                it.attr("data-link-target"),
+                it.select("h4").text()
+            )
+        }.amap {
+            val redirectUrl = app.get(fixUrl(it.second)).url
+            val lang = it.first.getLanguage(document)
+            val name = "${it.third} [${lang}]"
 
-        // Proceed with processing the link
-        val fixedUrl = fixUrl(targetUrl) // Fix the URL if necessary
-
-        // Debug output for fixed URL
-        println("Fixed URL: $fixedUrl")
-
-        // Follow the link and fetch the final URL
-        val redirectUrl = app.get(fixedUrl).url
-
-        // Now, handle the extractor to get the video link
-        loadExtractor(redirectUrl, data, subtitleCallback) { link ->
-            val linkWithFixedName = runBlocking {
-                newExtractorLink(
-                    source = hostName,
-                    name = hostName,
-                    url = link.url
-                ) {
-                    referer = link.referer
-                    quality = link.quality
-                    type = link.type
-                    headers = link.headers
-                    extractorData = link.extractorData
+            loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+                val linkWithFixedName = runBlocking {
+                    newExtractorLink(
+                        source = it.third,
+                        name = name,
+                        url = link.url
+                    ) {
+                        referer = link.referer
+                        quality = link.quality
+                        type = link.type
+                        headers = link.headers
+                        extractorData = link.extractorData
+                    }
                 }
+                callback.invoke(linkWithFixedName)
             }
-            callback.invoke(linkWithFixedName)
         }
 
         return true
@@ -186,6 +181,11 @@ open class Serienstream : MainAPI() {
         return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = posterUrl
         }
+    }
+
+    private fun String.getLanguage(document: Document): String? {
+        return document.selectSecond("div.changeLanguageBox img[data-lang-key=$this]")
+            ?.attr("title")?.removePrefix("mit")?.trim()
     }
 
     private class SearchResp : ArrayList<SearchItem>()
