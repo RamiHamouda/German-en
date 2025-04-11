@@ -195,9 +195,9 @@
             "Series"
         ],
         "version": 4,
-        "internalName": "Serienstream",
+        "internalName": "Seriens",
         "description": "Serien online ansehen und streamen",
-        "url": "https://raw.githubusercontent.com/Bnyro/GermanProviders/builds/Serienstream.cs3",
+        "url": "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/Seriens/src/main/kotlin/com/bnyro/Serienstream.kt",
         "name": "Seriens"
     },
     {
