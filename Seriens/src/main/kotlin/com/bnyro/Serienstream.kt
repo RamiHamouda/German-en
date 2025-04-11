@@ -28,11 +28,11 @@ import org.jsoup.nodes.Element
 
 open class Serienstream : MainAPI() {
     override var mainUrl = "https://s.to"
-    override var name = "Serienstream"
+    override var name = "Seriens"
     override val supportedTypes = setOf(TvType.TvSeries)
 
     override val hasMainPage = true
-    override var lang = "de"
+    override var lang = "en"
 
     override suspend fun getMainPage(
         page: Int,
