@@ -3,7 +3,7 @@ version = 4
 
 
 cloudstream {
-    language = "de"
+    language = "en"
     // All of these properties are optional, you can safely remove them
 
     description = "Serien online ansehen und streamen"
