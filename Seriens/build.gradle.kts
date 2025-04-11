@@ -7,7 +7,7 @@ cloudstream {
     // All of these properties are optional, you can safely remove them
 
     description = "Serien online ansehen und streamen"
-    authors = listOf("Hexated", "Bnyro")
+    authors = listOf("Rami")
 
     /**
      * Status int as the following:
