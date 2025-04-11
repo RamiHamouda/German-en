@@ -1,3 +1,10 @@
+plugins {
+    id("com.android.library")
+    id("kotlin-android")
+    id("com.lagradost.cloudstream3.gradle")
+}
+
+
 // use an integer for version numbers
 version = 4
 
