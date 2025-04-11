@@ -7,7 +7,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-open class Serienstream : MainAPI() {
+class Serienstream : MainAPI() {
     override var mainUrl = "https://s.to"
     override var name = "Serienstream"
     override val supportedTypes = setOf(TvType.TvSeries)
@@ -15,23 +15,25 @@ open class Serienstream : MainAPI() {
     override var lang = "de"
     override val instantLinkLoading = false
 
-    // Debugging utility
+    // ==================== Debugging ====================
     private fun debugLog(message: String) {
         println("[$name DEBUG] $message")
     }
 
+    // ==================== Main Page ====================
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(mainUrl).document
-        val homePageLists = document.select("div.carousel, section.slider").mapNotNull { ele ->
-            val header = ele.selectFirst("h2, .title")?.text()?.trim() ?: return@mapNotNull null
-            val items = ele.select("div.coverListItem, .slider-item").mapNotNull {
+        val homePageLists = document.select("div.carousel, section.slider").mapNotNull { slider ->
+            val title = slider.selectFirst("h2, .slider-title")?.text()?.trim() ?: return@mapNotNull null
+            val items = slider.select("div.coverListItem, .slider-item").mapNotNull {
                 it.toSearchResult()
             }
-            HomePageList(header, items).takeIf { items.isNotEmpty() }
+            HomePageList(title, items).takeIf { items.isNotEmpty() }
         }
-        return newHomePageResponse(homePageLists, hasNext = false)
+        return newHomePageResponse(homePageLists)
     }
 
+    // ==================== Search ====================
     override suspend fun search(query: String): List<SearchResponse> {
         return try {
             app.post(
@@ -41,7 +43,7 @@ open class Serienstream : MainAPI() {
                     "x-requested-with" to "XMLHttpRequest",
                     "referer" to "$mainUrl/search"
                 )
-            ).parsed<SearchResp>().mapNotNull {
+            ).parsed<SearchResponse>().mapNotNull {
                 if (!it.link.contains("/serie/")) return@mapNotNull null
                 newTvSeriesSearchResponse(
                     it.title?.replace(Regex("</?em>"), "") ?: "No Title",
@@ -55,6 +57,7 @@ open class Serienstream : MainAPI() {
         }
     }
 
+    // ==================== Load Series ====================
     override suspend fun load(url: String): LoadResponse? {
         val document = try {
             app.get(url).document.also {
@@ -65,12 +68,14 @@ open class Serienstream : MainAPI() {
             return null
         }
 
-        val title = document.selectFirst("div.series-title span, h1.series-title")?.text() ?: run {
-            debugLog("No title found")
-            return null
-        }
-        
-        val episodes = document.select("div#stream > ul:first-child li").mapNotNull { seasonEle ->
+        val title = document.selectFirst(".series-title, h1")?.text() ?: return null
+        val poster = fixUrlNull(document.selectFirst(".seriesCoverBox img, .poster")?.attr("src"))
+        val year = document.selectFirst("[itemprop=startDate], .year")?.text()?.toIntOrNull()
+        val description = document.selectFirst(".seri_des, .description")?.text()
+        val tags = document.select(".genres a, .genre-tag").map { it.text() }
+        val actors = document.select(".actors a, [itemprop=actor]").map { it.text() }
+
+        val episodes = document.select(".season-list li, #stream li").mapNotNull { seasonEle ->
             val seasonLink = seasonEle.selectFirst("a")?.attr("href") ?: return@mapNotNull null
             val seasonNumber = seasonEle.text().let { text ->
                 Regex("Staffel (\\d+)").find(text)?.groupValues?.get(1)?.toIntOrNull()
@@ -79,36 +84,31 @@ open class Serienstream : MainAPI() {
             loadSeasonEpisodes(fixUrl(seasonLink), seasonNumber, url)
         }.flatten()
 
-        debugLog("Found ${episodes.size} episodes for $title")
+        debugLog("Loaded ${episodes.size} episodes for $title")
 
-        return newTvSeriesLoadResponse(
-            title,
-            url,
-            TvType.TvSeries,
-            episodes
-        ) {
-            this.posterUrl = fixUrlNull(document.selectFirst("div.seriesCoverBox img")?.attr("data-src"))
-            this.year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
-            this.plot = document.select("p.seri_des").text()
-            this.tags = document.select("div.genres li a").map { it.text() }
-            addActors(document.select("li:contains(Schauspieler:) ul li a").map { it.select("span").text() })
+        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            this.posterUrl = poster
+            this.year = year
+            this.plot = description
+            this.tags = tags
+            addActors(actors)
         }
     }
 
     private suspend fun loadSeasonEpisodes(seasonUrl: String, season: Int?, referer: String): List<Episode> {
         return try {
             val doc = app.get(seasonUrl, referer = referer).document
-            doc.select("table.seasonEpisodesList tbody tr").mapNotNull { tr ->
-                val epUrl = fixUrlNull(tr.selectFirst("a")?.attr("href")) ?: return@mapNotNull null
-                val epNum = tr.selectFirst("meta[itemprop=episodeNumber]")?.attr("content")?.toIntOrNull()
-                val epTitle = tr.selectFirst(".seasonEpisodeTitle strong")?.text()
+            doc.select(".episode-list tr, table tbody tr").mapNotNull { tr ->
+                val epUrl = fixUrlNull(tr.selectFirst("a[href]")?.attr("href")) ?: return@mapNotNull null
+                val epNum = tr.selectFirst("[itemprop=episodeNumber], .episode-num")?.text()?.toIntOrNull()
+                val epTitle = tr.selectFirst(".episode-title, [itemprop=name]")?.text()
                 
                 newEpisode(epUrl) {
                     this.season = season
                     this.episode = epNum
                     this.name = epTitle
                 }.also {
-                    debugLog("Found episode: S${season}E${epNum} - ${epTitle}")
+                    debugLog("Found episode: S${season}E${epNum} - $epTitle")
                 }
             }
         } catch (e: Exception) {
@@ -117,17 +117,18 @@ open class Serienstream : MainAPI() {
         }
     }
 
+    // ==================== Load Links ====================
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        debugLog("Attempting to load links for: $data")
+        debugLog("Loading links for: $data")
         
         val document = try {
             app.get(data).document.also {
-                debugLog("Page title: ${it.title()}")
+                debugLog("Loaded episode page: ${it.title()}")
             }
         } catch (e: Exception) {
             debugLog("Failed to load episode page: ${e.message}")
@@ -135,12 +136,12 @@ open class Serienstream : MainAPI() {
         }
 
         // Method 1: Standard hosters
-        val hosters = document.select("div.hosterSiteVideo ul li").mapNotNull {
+        val hosters = document.select(".hoster-list li, [data-link-target]").mapNotNull {
             val lang = it.attr("data-lang-key").ifEmpty { "de" }
             val target = it.attr("data-link-target").ifEmpty { 
                 it.selectFirst("a[href]")?.attr("href") 
             } ?: return@mapNotNull null
-            val name = it.select("h4").text().ifEmpty { "Unknown" }
+            val name = it.select("h4, .hoster-name").text().ifEmpty { "Unknown" }
             Triple(lang, fixUrl(target), name)
         }.also {
             debugLog("Found ${it.size} standard hosters")
@@ -153,21 +154,33 @@ open class Serienstream : MainAPI() {
             debugLog("Found ${it.size} iframes")
         }
 
-        // Method 3: Direct video elements
-        val videos = document.select("video source[src]").map {
+        // Method 3: Direct video sources
+        val videos = document.select("video source[src], .video-container source[src]").map {
             Pair("direct", fixUrl(it.attr("src")))
         }.also {
             debugLog("Found ${it.size} direct video sources")
         }
 
-        // Process all found sources
-        (hosters + iframes + videos).forEach { (type, url, name) ->
+        // Method 4: JavaScript player detection
+        val jsPlayers = document.select("script:containsData(player), script:containsData(source)").mapNotNull {
+            Regex("""(https?://[^"'\s]+\.(mp4|m3u8))""").find(it.data())?.groupValues?.get(1)
+        }.map {
+            Pair("js-player", fixUrl(it))
+        }.also {
+            debugLog("Found ${it.size} JS players")
+        }
+
+        // Process all sources
+        (hosters + iframes + videos + jsPlayers).forEach { (type, url, name) ->
             try {
                 debugLog("Processing $type source: $url")
-                val redirectUrl = app.get(url, referer = data).url
-                debugLog("Redirected to: $redirectUrl")
+                val finalUrl = if (type == "direct" || type == "js-player") {
+                    url
+                } else {
+                    app.get(url, referer = data).url
+                }
                 
-                loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+                loadExtractor(finalUrl, data, subtitleCallback) { link ->
                     callback(newExtractorLink(
                         name = "$name [${type.uppercase()}]",
                         url = link.url,
@@ -175,24 +188,23 @@ open class Serienstream : MainAPI() {
                         quality = link.quality,
                         type = link.type
                     ).also {
-                        debugLog("Successfully created extractor link: ${it.name}")
+                        debugLog("Created extractor link: ${it.name}")
                     })
                 }
             } catch (e: Exception) {
                 debugLog("Failed to process $url: ${e.message}")
-                // Try direct extraction as fallback
-                loadExtractor(url, data, subtitleCallback, callback)
             }
         }
 
-        val totalLinks = hosters.size + iframes.size + videos.size
+        val totalLinks = hosters.size + iframes.size + videos.size + jsPlayers.size
         debugLog("Total links processed: $totalLinks")
         return totalLinks > 0
     }
 
+    // ==================== Utilities ====================
     private fun Element.toSearchResult(): TvSeriesSearchResponse? {
         val href = fixUrlNull(selectFirst("a")?.attr("href")) ?: return null
-        val title = selectFirst("h3")?.text() ?: return null
+        val title = selectFirst("h3, .title")?.text() ?: return null
         val poster = fixUrlNull(selectFirst("img")?.attr("data-src") ?: selectFirst("img")?.attr("src"))
         
         return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
@@ -200,7 +212,7 @@ open class Serienstream : MainAPI() {
         }
     }
 
-    private class SearchResp : ArrayList<SearchItem>()
+    private class SearchResponse : ArrayList<SearchItem>()
     private data class SearchItem(
         @JsonProperty("link") val link: String,
         @JsonProperty("title") val title: String? = null,
