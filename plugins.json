@@ -1,0 +1,21 @@
+[
+
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https:/&s.to&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/RamiHamouda/German-en",
+        "fileSize": 16102,
+        "status": 1,
+        "language": "en",
+        "authors": ["Rami"
+        ],
+        "tvTypes": [
+            "Series"
+        ],
+        "version": 4,
+        "internalName": "Seriens",
+        "description": "Serien online ansehen und streamen",
+        "url": "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/Seriens/src/main/kotlin/com/bnyro/Serienstream.kt",
+        "name": "Seriens"
+    },
+]

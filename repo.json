@@ -1,0 +1,8 @@
+{
+  "name": "German providers EN repository",
+  "description": "German providers EN",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/plugins.json"
+  ]
+}
