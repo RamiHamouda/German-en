@@ -3,6 +3,6 @@
   "description": "German providers EN",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/plugins.json"
+    "https://github.com/RamiHamouda/German_en/raw/refs/heads/main/plugins.json"
   ]
 }
