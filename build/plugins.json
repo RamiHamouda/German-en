@@ -14,7 +14,7 @@
         "version": 4,
         "internalName": "Germanen",
         "description": "Serien online ansehen und streamen",
-        "url": "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/build/Germanen.cs3",
+        "url": "https://raw.githubusercontent.com/RamiHamouda/German-en/refs/heads/main/Germanen/src/main/kotlin/com/bnyro/Serienstream.kt",
         "name": "Germanen"
     }
 ]
