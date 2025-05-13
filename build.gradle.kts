@@ -5,7 +5,7 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        // Shitpack repo which contains our tools and dependencies 
+        // Shitpack repo which contains our tools and dependencies
         maven("https://jitpack.io")
     }
 
@@ -67,10 +67,6 @@ subprojects {
 
     dependencies {
         val implementation by configurations
-
-        // Core CloudStream3 SDK modules with explicit versions
-        implementation("com.lagradost.cloudstream3:core:1.7.1")
-        implementation("com.lagradost.cloudstream3:extractors:1.7.1")
 
         implementation(kotlin("stdlib")) // adds standard kotlin features
         implementation("com.github.Blatzar:NiceHttp:0.4.13") // http library
