@@ -4,7 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
 
-// Local replacement for ExtractorLink (if missing in the SDK)
+// Minimal replacement for ExtractorLink if missing in your SDK
 data class ExtractorLink(
     val source: String,
     val name: String,
@@ -103,7 +103,7 @@ class Serienstream : MainAPI() {
                             url = link.url,
                             referer = link.referer,
                             quality = link.quality,
-                            type = link.type?.name, // Fix: Convert Enum to String
+                            type = link.type?.name, // Convert Enum to String
                             headers = link.headers
                         )
                     )
