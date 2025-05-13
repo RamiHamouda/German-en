@@ -1,11 +1,35 @@
 package com.bnyro
 
-import com.fasterxml.jackson.annotation.JsonProperty import com.lagradost.cloudstream3.HomePageList import com.lagradost.cloudstream3.HomePageResponse import com.lagradost.cloudstream3.LoadResponse import com.lagradost.cloudstream3.LoadResponse.Companion.addActors import com.lagradost.cloudstream3.MainAPI import com.lagradost.cloudstream3.MainPageRequest import com.lagradost.cloudstream3.SearchResponse import com.lagradost.cloudstream3.SubtitleFile import com.lagradost.cloudstream3.TvSeriesSearchResponse import com.lagradost.cloudstream3.TvType import com.lagradost.cloudstream3.amap import com.lagradost.cloudstream3.app import com.lagradost.cloudstream3.fixUrl import com.lagradost.cloudstream3.fixUrlNull import com.lagradost.cloudstream3.newEpisode import com.lagradost.cloudstream3.newHomePageResponse import com.lagradost.cloudstream3.newTvSeriesLoadResponse import com.lagradost.cloudstream3.newTvSeriesSearchResponse import com.lagradost.cloudstream3.utils.ExtractorLink import com.lagradost.cloudstream3.utils.loadExtractor import com.lagradost.cloudstream3.utils.newExtractorLink import kotlinx.coroutines.runBlocking import org.jsoup.nodes.Document import org.jsoup.nodes.Element
+import com.fasterxml.jackson.annotation.JsonProperty 
+import com.lagradost.cloudstream3.HomePageList
+import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.MainAPI 
+import com.lagradost.cloudstream3.MainPageRequest 
+import com.lagradost.cloudstream3.SearchResponse 
+import com.lagradost.cloudstream3.SubtitleFile 
+import com.lagradost.cloudstream3.TvSeriesSearchResponse 
+import com.lagradost.cloudstream3.TvType 
+import com.lagradost.cloudstream3.amap 
+import com.lagradost.cloudstream3.app 
+import com.lagradost.cloudstream3.fixUrl 
+import com.lagradost.cloudstream3.fixUrlNull 
+import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.newHomePageResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse 
+import com.lagradost.cloudstream3.newTvSeriesSearchResponse
+import com.lagradost.cloudstream3.utils.ExtractorLink 
+import com.lagradost.cloudstream3.utils.loadExtractor 
+import com.lagradost.cloudstream3.utils.newExtractorLink 
+import kotlinx.coroutines.runBlocking 
+import org.jsoup.nodes.Document 
+import org.jsoup.nodes.Element
 
 open class Serienstream : MainAPI() { override var mainUrl = "https://s.to" override var name = "Serienstream" override val supportedTypes = setOf(TvType.TvSeries)
 
 override val hasMainPage = true
-override var lang = "de"
+override var lang = "en"
 
 override suspend fun getMainPage(
     page: Int,
