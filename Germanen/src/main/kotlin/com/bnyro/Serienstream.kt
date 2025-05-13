@@ -4,16 +4,15 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
 
-// Simple replacement for missing ExtractorLink class from your SDK
-data class SimpleExtractorLink(
+// Local replacement for ExtractorLink (if missing in the SDK)
+data class ExtractorLink(
     val source: String,
     val name: String,
     val url: String,
     val referer: String? = null,
     val quality: Int? = null,
     val type: String? = null,
-    val headers: Map<String, String>? = null,
-    val extractorData: Any? = null
+    val headers: Map<String, String>? = null
 )
 
 class Serienstream : MainAPI() {
@@ -77,7 +76,7 @@ class Serienstream : MainAPI() {
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (SimpleExtractorLink) -> Unit // Note the changed type here!
+        callback: (ExtractorLink) -> Unit
     ): Boolean {
         return try {
             val document = app.get(data).document ?: return false
@@ -98,15 +97,14 @@ class Serienstream : MainAPI() {
 
                 loadExtractor(redirectUrl, data, subtitleCallback) { link ->
                     callback(
-                        SimpleExtractorLink(
+                        ExtractorLink(
                             source = label,
                             name = name,
                             url = link.url,
                             referer = link.referer,
                             quality = link.quality,
-                            type = link.type,
-                            headers = link.headers,
-                            extractorData = link.extractorData
+                            type = link.type?.name, // Fix: Convert Enum to String
+                            headers = link.headers
                         )
                     )
                 }
