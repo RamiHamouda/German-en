@@ -4,14 +4,17 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
 
-// Explicit imports necessary for ExtractorLink usage
-import com.lagradost.cloudstream3.ExtractorLink
-import com.lagradost.cloudstream3.newExtractorLink
-import com.lagradost.cloudstream3.Actor
-import com.lagradost.cloudstream3.ActorData
-import com.lagradost.cloudstream3.Episode
-import com.lagradost.cloudstream3.SubtitleFile
-import com.lagradost.cloudstream3.TvType
+// Simple replacement for missing ExtractorLink class from your SDK
+data class SimpleExtractorLink(
+    val source: String,
+    val name: String,
+    val url: String,
+    val referer: String? = null,
+    val quality: Int? = null,
+    val type: String? = null,
+    val headers: Map<String, String>? = null,
+    val extractorData: Any? = null
+)
 
 class Serienstream : MainAPI() {
     override var mainUrl = "https://www.s.to"
@@ -28,7 +31,6 @@ class Serienstream : MainAPI() {
             val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
             val description = document.select("p.seri_des").text()
 
-            // Map actor names to ActorData objects
             val actors = document.select("li:contains(Schauspieler:) ul li a span")
                 .map { actorName -> ActorData(Actor(actorName.text(), null)) }
 
@@ -75,7 +77,7 @@ class Serienstream : MainAPI() {
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        callback: (SimpleExtractorLink) -> Unit // Note the changed type here!
     ): Boolean {
         return try {
             val document = app.get(data).document ?: return false
@@ -94,20 +96,18 @@ class Serienstream : MainAPI() {
                 val lang = "English"
                 val name = "$label [$lang]"
 
-                // Use the callback inside loadExtractor lambda - this is fine because loadExtractor expects a callback
                 loadExtractor(redirectUrl, data, subtitleCallback) { link ->
                     callback(
-                        newExtractorLink(
+                        SimpleExtractorLink(
                             source = label,
                             name = name,
-                            url = link.url
-                        ) {
-                            referer = link.referer
-                            quality = link.quality
-                            type = link.type
-                            headers = link.headers
+                            url = link.url,
+                            referer = link.referer,
+                            quality = link.quality,
+                            type = link.type,
+                            headers = link.headers,
                             extractorData = link.extractorData
-                        }
+                        )
                     )
                 }
             }
