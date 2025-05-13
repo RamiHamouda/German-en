@@ -1,19 +1,17 @@
 package com.bnyro.Serienstream
 
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
+import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.utils.SubtitleFile
+import com.lagradost.cloudstream3.extractor.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Document
-
-// Minimal replacement for ExtractorLink if missing in your SDK
-data class ExtractorLink(
-    val source: String,
-    val name: String,
-    val url: String,
-    val referer: String? = null,
-    val quality: Int? = null,
-    val type: String? = null,
-    val headers: Map<String, String>? = null
-)
 
 class Serienstream : MainAPI() {
     override var mainUrl = "https://www.s.to"
@@ -92,8 +90,7 @@ class Serienstream : MainAPI() {
             for ((_, target, label) in links) {
                 val redirectResponse = app.get(fixUrl(target))
                 val redirectUrl = redirectResponse.url
-                val lang = "English"
-                val name = "$label [$lang]"
+                val name = "$label [English]"
 
                 loadExtractor(redirectUrl, data, subtitleCallback) { link ->
                     callback(
@@ -109,6 +106,7 @@ class Serienstream : MainAPI() {
                     )
                 }
             }
+
             true
         } catch (e: Exception) {
             e.printStackTrace()
