@@ -2,20 +2,16 @@ package com.bnyro.Serienstream
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.extractors.*
 import org.jsoup.nodes.Document
 
-// Explicit imports for types used in this file
+// Explicit imports necessary for ExtractorLink usage
+import com.lagradost.cloudstream3.ExtractorLink
+import com.lagradost.cloudstream3.newExtractorLink
 import com.lagradost.cloudstream3.Actor
 import com.lagradost.cloudstream3.ActorData
 import com.lagradost.cloudstream3.Episode
-import com.lagradost.cloudstream3.ExtractorLink
-import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.newEpisode
-import com.lagradost.cloudstream3.newExtractorLink
-import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 
 class Serienstream : MainAPI() {
     override var mainUrl = "https://www.s.to"
@@ -32,10 +28,9 @@ class Serienstream : MainAPI() {
             val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
             val description = document.select("p.seri_des").text()
 
+            // Map actor names to ActorData objects
             val actors = document.select("li:contains(Schauspieler:) ul li a span")
-                .map { actorName ->
-                    ActorData(actor = Actor(actorName.text(), null))
-                }
+                .map { actorName -> ActorData(Actor(actorName.text(), null)) }
 
             val episodes = fetchEpisodes(document)
 
@@ -94,10 +89,12 @@ class Serienstream : MainAPI() {
                 }
 
             for ((_, target, label) in links) {
-                val redirectUrl = app.get(fixUrl(target)).url
+                val redirectResponse = app.get(fixUrl(target))
+                val redirectUrl = redirectResponse.url
                 val lang = "English"
                 val name = "$label [$lang]"
 
+                // Use the callback inside loadExtractor lambda - this is fine because loadExtractor expects a callback
                 loadExtractor(redirectUrl, data, subtitleCallback) { link ->
                     callback(
                         newExtractorLink(
