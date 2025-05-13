@@ -1,4 +1,4 @@
-import com.lagradost.cloudstream3.gradle.CloudstreamExtension 
+import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import com.android.build.gradle.BaseExtension
 
 buildscript {
@@ -66,11 +66,11 @@ subprojects {
     }
 
     dependencies {
-        val apk by configurations
         val implementation by configurations
 
-        // Stubs for all Cloudstream classes
-        apk("com.lagradost:cloudstream3:pre-release")
+        // Core CloudStream3 SDK modules with explicit versions
+        implementation("com.lagradost.cloudstream3:core:1.7.1")
+        implementation("com.lagradost.cloudstream3:extractors:1.7.1")
 
         implementation(kotlin("stdlib")) // adds standard kotlin features
         implementation("com.github.Blatzar:NiceHttp:0.4.13") // http library
