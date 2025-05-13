@@ -2,7 +2,20 @@ package com.bnyro.Serienstream
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.extractors.*
 import org.jsoup.nodes.Document
+
+// Explicit imports for types used in this file
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
+import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.ExtractorLink
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.newExtractorLink
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 
 class Serienstream : MainAPI() {
     override var mainUrl = "https://www.s.to"
@@ -20,12 +33,14 @@ class Serienstream : MainAPI() {
             val description = document.select("p.seri_des").text()
 
             val actors = document.select("li:contains(Schauspieler:) ul li a span")
-                .map { Actor(it.text(), null) }  // Fixed
+                .map { actorName ->
+                    ActorData(actor = Actor(actorName.text(), null))
+                }
 
             val episodes = fetchEpisodes(document)
 
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                this.posterUrl = poster
+                posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -44,7 +59,7 @@ class Serienstream : MainAPI() {
         for (seasonLink in seasonLinks) {
             val seasonNumber = seasonLink.text().toIntOrNull() ?: continue
             val seasonUrl = fixUrl(seasonLink.attr("href"))
-            val seasonDoc = app.get(seasonUrl).document ?: continue  // Fixed coroutine usage
+            val seasonDoc = app.get(seasonUrl).document ?: continue
 
             val rows = seasonDoc.select("table.seasonEpisodesList tbody tr")
             for (row in rows) {
@@ -55,11 +70,9 @@ class Serienstream : MainAPI() {
                     name = row.selectFirst(".seasonEpisodeTitle")?.text()
                     season = seasonNumber
                 }
-
                 episodes.add(episode)
             }
         }
-
         return episodes
     }
 
