@@ -19,9 +19,8 @@ class Serienstream : MainAPI() {
             val year = document.selectFirst("span[itemprop=startDate] a")?.text()?.toIntOrNull()
             val description = document.select("p.seri_des").text()
 
-            // Fixed ActorData usage: first parameter is actor name, second is image (can be null)
             val actors = document.select("li:contains(Schauspieler:) ul li a span")
-                .map { ActorData(it.text(), null) }
+                .map { Actor(it.text(), null) }  // Fixed
 
             val episodes = fetchEpisodes(document)
 
@@ -45,7 +44,7 @@ class Serienstream : MainAPI() {
         for (seasonLink in seasonLinks) {
             val seasonNumber = seasonLink.text().toIntOrNull() ?: continue
             val seasonUrl = fixUrl(seasonLink.attr("href"))
-            val seasonDoc = app.get(seasonUrl).document ?: continue
+            val seasonDoc = app.get(seasonUrl).document ?: continue  // Fixed coroutine usage
 
             val rows = seasonDoc.select("table.seasonEpisodesList tbody tr")
             for (row in rows) {
